@@ -1,17 +1,11 @@
-val environmentVariablesFileName = ".env.properties"
-
-// loads environment variables when a JavaExec task is ran
-
-tasks.withType<JavaExec> {
-    println("Configuring environment variables")
-
-    project.file(environmentVariablesFileName)
-        .takeIf { it.exists() && it.isFile }
-        ?.run {
-            readLines()
-                .filterNot { it.startsWith("#") || it.startsWith("//") }
-                .map { it.split("=", limit = 2) }
-                .forEach { systemProperty(it.first(), it.last()) }
+fun configureEnvironment(task: ProcessForkOptions) {
+    val f = File("${rootProject.projectDir}/.env.properties")
+    if (f.isFile) {
+        val props = java.util.Properties()
+        f.inputStream().use { props.load(it) }
+        props.forEach { key, value ->
+            task.environment[key.toString()] = value.toString()
         }
-        ?: println("Skipping environment variable initialisation: No '$environmentVariablesFileName' file found.")
+    }
 }
+extra["configureEnvironment"] = { task: ProcessForkOptions -> configureEnvironment(task) }

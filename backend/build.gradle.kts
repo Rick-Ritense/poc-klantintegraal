@@ -1,109 +1,81 @@
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21
-import org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_1
+@file:Suppress("UNCHECKED_CAST")
+
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
-buildscript {
-    apply("gradle/environment.gradle.kts")
-}
-
 plugins {
-    id("org.springframework.boot") version "3.2.2"
-    id("io.spring.dependency-management") version "1.1.4"
-    id("java")
-    id("org.jetbrains.kotlin.jvm") version "2.0.20"
-    id("org.jetbrains.kotlin.plugin.jpa") version "2.0.20"
+    war
+    // Idea
+    idea
+    id("org.jetbrains.gradle.plugin.idea-ext")
 
-    // IntelliJ IDEA
-    id("org.jetbrains.gradle.plugin.idea-ext") version "1.1.7"
-    id("org.jetbrains.kotlin.plugin.spring") version "2.0.20"
+    // Spring
+    id("org.springframework.boot")
+    id("io.spring.dependency-management")
 
-    // Linting
-    id("org.jlleitschuh.gradle.ktlint") version "12.1.0"
+    // Kotlin
+    kotlin("jvm")
+    kotlin("plugin.spring")
+    kotlin("plugin.jpa")
+    kotlin("plugin.allopen")
+
+    // Checkstyle
+    id("org.jlleitschuh.gradle.ktlint")
+    id("com.diffplug.spotless")
 }
 
-apply("gradle/test.gradle.kts")
-
-idea {
-    module {
-        isDownloadSources = true
-    }
-}
-
-sourceSets {
-    this.getByName("main") {
-        this.java.srcDir("src/main/java")
-        this.java.srcDir("src/main/kotlin")
-    }
-}
-
-tasks.withType<KotlinCompile> {
-    println("Configuring KotlinCompile $name in project ${project.name}...")
-
-    compilerOptions {
-        languageVersion.set(KOTLIN_2_1)
-        apiVersion.set(KOTLIN_2_1)
-        jvmTarget.set(JVM_21)
-        freeCompilerArgs = listOf("-Xjsr305=strict", "-Xemit-jvm-type-annotations")
-    }
-}
-
-group = "nl.nl-portal.backend"
-version = "1.0"
-java.sourceCompatibility = JavaVersion.VERSION_21
+java.sourceCompatibility = JavaVersion.VERSION_17
+java.targetCompatibility = JavaVersion.VERSION_17
 
 repositories {
     mavenCentral()
-    maven("https://oss.sonatype.org/content/repositories/releases")
-    maven("https://s01.oss.sonatype.org/content/groups/staging/")
-    maven("https://s01.oss.sonatype.org/content/repositories/snapshots/")
+    maven { url = uri("https://s01.oss.sonatype.org/content/repositories/snapshots/") }
+    maven { url = uri("https://repo.ritense.com/repository/maven-public/") }
+    maven { url = uri("https://repo.ritense.com/repository/maven-snapshot/") }
 }
 
-allprojects {
-    apply(plugin = "org.jlleitschuh.gradle.ktlint")
-}
-
-val backendLibrariesReleaseVersion = "1.4.21-SNAPSHOT"
-val backendLibrariesVersion =
-    if (project.hasProperty("libraryVersion") && project.property("libraryVersion").toString().trim() != "") {
-        project.property("libraryVersion")
-    } else {
-        backendLibrariesReleaseVersion
-    }
-val kotlinLogging = "3.0.5"
-val springSecurityOAuth = "6.3.3"
-println("version of nl-portal-backend-libraries '$backendLibrariesVersion' will be deployed.")
+val valtimoVersion: String by project
 
 dependencies {
-    // NL Portal Library dependencies
-    implementation("nl.nl-portal:core:$backendLibrariesVersion")
-    implementation("nl.nl-portal:data:$backendLibrariesVersion")
-    implementation("nl.nl-portal:graphql:$backendLibrariesVersion")
-    implementation("nl.nl-portal:klant:$backendLibrariesVersion")
+    implementation(platform("com.ritense.valtimo:valtimo-dependency-versions:$valtimoVersion"))
 
-    // zgw
-    implementation("nl.nl-portal:catalogi-api:$backendLibrariesVersion")
-    implementation("nl.nl-portal:common-ground-authentication:$backendLibrariesVersion")
-    implementation("nl.nl-portal:common-ground-authentication-test:$backendLibrariesVersion")
-    implementation("nl.nl-portal:documenten-api:$backendLibrariesVersion")
+    implementation("com.ritense.valtimo:valtimo-gzac-dependencies")
 
-    implementation("nl.nl-portal:klant-generiek:$backendLibrariesVersion")
-    implementation("nl.nl-portal:zaken-api:$backendLibrariesVersion")
+    implementation("com.ritense.valtimo:local-mail")
 
-    // Spring dependencies
-    implementation("org.springframework.boot:spring-boot-starter")
-    implementation("org.springframework.boot:spring-boot-starter-webflux")
-    implementation("org.springframework.boot:spring-boot-starter-actuator")
-    implementation("org.springframework.security:spring-security-oauth2-client:$springSecurityOAuth")
+    implementation("org.postgresql:postgresql:42.7.3")
 
-    // Kotlin logger dependency
-    implementation("io.github.microutils:kotlin-logging:$kotlinLogging")
+    if (System.getProperty("os.arch") == "aarch64") {
+        runtimeOnly("io.netty:netty-resolver-dns-native-macos:4.1.105.Final:osx-aarch_64")
+    }
 
-    // Postgres dependency
-    implementation("org.postgresql:postgresql")
+    // Kotlin logger
+    implementation("io.github.microutils:kotlin-logging")
+
+    // Testing
+    testImplementation("com.ritense.valtimo:test-utils-common")
+    testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.camunda.bpm.assert:camunda-bpm-assert:15.0.0")
+    testImplementation("org.camunda.bpm.extension:camunda-bpm-junit5:1.1.0")
+    testImplementation("org.camunda.bpm.extension:camunda-bpm-assert:1.2")
+    testImplementation("org.camunda.bpm.extension:camunda-bpm-assert-scenario:1.1.1")
+    testImplementation("org.camunda.bpm.extension.mockito:camunda-bpm-mockito:5.16.0")
+    testImplementation("org.mockito:mockito-core:4.4.0")
+    testImplementation("org.mockito.kotlin:mockito-kotlin:4.0.0")
 }
 
-tasks.withType<Test> {
-    useJUnitPlatform()
+tasks.withType<KotlinCompile> {
+    kotlinOptions {
+        freeCompilerArgs = listOf("-Xjsr305=strict")
+        jvmTarget = "17"
+    }
 }
 
-apply(from = "gradle/deployment.gradle")
+apply(from = "gradle/environment.gradle.kts")
+val configureEnvironment = extra["configureEnvironment"] as (task: ProcessForkOptions) -> Unit
+
+tasks.bootRun {
+    val t = this
+    doFirst {
+        configureEnvironment(t)
+    }
+}
